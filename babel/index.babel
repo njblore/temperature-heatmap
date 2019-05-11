@@ -1,0 +1,168 @@
+/* grab data */
+document.addEventListener('DOMContentLoaded',function(){
+  req=new XMLHttpRequest();
+  req.open("GET",'https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json',true);
+  req.send();
+  req.onload=function(){
+    json=JSON.parse(req.responseText);
+    
+
+/* declare variables */
+    const dataset = json.monthlyVariance;
+    const cellWidth = 5;
+    const cellHeight = 30;
+    const margin = {top: 150, left: 70, bottom: 150, right: 50};
+    const innerHeight = 12 * cellHeight;
+    const innerWidth = 262 * cellWidth;
+    const width = innerWidth + margin.left + margin.right;
+    const height =  innerHeight + margin.top + margin.bottom;
+    
+    
+    const temps = dataset.map(v => Math.round((8.66 + v.variance) * 100) / 100);
+    const months = {1: 'January', 2: 'February', 3: 'March', 4: 'April', 5: 'May', 6: 'June', 7: 'July', 8: 'August', 9: 'September', 10: 'October', 11: 'November', 12: 'December'};
+    
+
+/* create svg canvas & inner */
+    const canvas = d3.select('body')
+                      .append('svg')
+                      .attr('width', width)
+                      .attr('height', height)
+                      .attr('class', 'canvas')
+
+    
+    const innerCanvas = canvas.append('g')
+                      .attr('width', innerWidth)
+                      .attr('height', innerHeight)
+                      .attr('transform', `translate(${margin.left}, ${margin.top})`)
+    
+/* add a title */
+    
+    canvas.append('text')
+    .text('Monthly Global Land-Surface Temperature')
+    .attr('id', 'title')
+    .attr('transform', `translate(${width/2}, ${margin.top/3})`)
+    
+    canvas.append('text')
+    .text('1753 - 2015: base temperature 8.66℃')
+    .attr('id', 'description')
+    .attr('transform', `translate(${width/2}, ${margin.top/1.5})`)
+    
+    
+/* generate colour scale */
+   
+    const colourScale = d3.scaleLinear()
+                          .domain([d3.min(temps), d3.max(temps)])
+                          .range(['blue', 'red'])
+
+    
+/* generate axis scales */
+    
+    const xScale = d3.scaleLinear()
+                      .domain([1753, 2015])
+                      .range([0, innerWidth])
+   
+    
+    const yScale = d3.scaleBand()
+                      .domain(Object.values(months))
+                      .range([0, innerHeight])
+
+/* draw axes */
+
+    const xAxis = d3.axisBottom(xScale).tickFormat(d3.format('d')).ticks(25);
+    const yAxis = d3.axisLeft(yScale);
+    
+    innerCanvas.append('g')
+                .attr('transform', `translate(0, ${innerHeight})`)
+                .attr('id', 'x-axis')
+                .call(xAxis)
+    
+    innerCanvas.append('g')
+                .attr('transform', `translate(0,0)`)
+                .attr('id', 'y-axis')
+                .call(yAxis)
+    
+    
+/* plot cells */
+    
+    let cells = innerCanvas.selectAll('rect')
+                            .data(dataset)
+                            .enter()
+                            .append('rect')
+                            .attr('x', d => xScale(d.year))
+                            .attr('y', d => yScale(months[d.month]))
+                            .attr('height', cellHeight)
+                            .attr('width', cellWidth)
+                            .attr('data-month', d => d.month-1)
+                            .attr('data-year', d => d.year)
+                            .attr('data-temp', (d, i) => temps[i])
+                            .attr('class', 'cell')
+                            .attr('fill', (d, i) => colourScale(temps[i]))
+
+/* add legend */
+    
+    // create an array of the range of temps being displayed
+    const tempRange = []
+    
+    for (let i=d3.min(temps); i<= d3.max(temps); i+= 0.6) {
+      tempRange.push(Math.round(i*10)/10)
+    }
+
+    // create a mini-heatmap as a legend
+    const legendXScale = d3.scaleBand()
+                            .domain(tempRange)
+                            .range([0, (innerWidth)])
+    
+    
+    const legendCanvas = innerCanvas.append('g')
+                          .attr('id', 'legend')
+                          .attr('transform', `translate(0,${innerHeight+margin.bottom/2})`)
+    
+    const legendXAxis = d3.axisBottom(legendXScale).tickFormat(d => d+'°C')
+    
+    legendCanvas.append('g')
+                .attr('transform', `translate(0, ${30})`)
+                .call(legendXAxis)
+    
+    // draw the rects for the legend
+    legendCanvas.selectAll('rect')
+    .data(tempRange)
+    .enter()
+    .append('rect')
+    .attr('width', innerWidth / tempRange.length)
+    .attr('height', 30)
+    .attr('x', (d,i) => i*innerWidth / tempRange.length)
+    .attr('fill', (d, i) => colourScale(tempRange[i]))
+    
+    
+
+/* create tooltips */
+    
+    cells.on('mouseover', function(d) {
+      
+      d3.select('#info')
+        .text(getTooltip(d))
+      
+      var xPosition = d3.select(this).attr("x");
+      var yPosition = d3.select(this).attr("y");
+
+      d3.select('#tooltip')
+      .classed('hidden', false)
+      .style("left", (parseInt(xPosition) + margin.left) + "px")
+      .style("top", (parseInt(yPosition) + margin.top -80) + "px")
+      .attr('data-year', d.year)
+      
+      cells.on("mouseout", function() {
+			  d3.select("#tooltip").classed("hidden", true);
+      })
+    })
+    
+    
+    
+    /* function to get text for the tooltip*/
+    function getTooltip(d) {
+      return `${months[d.month]} ${d.year} \n ${Math.round((8.66 + d.variance)*100)/100}°C \n (${Math.floor(d.variance*100)/100}°C)`
+    }
+    
+    
+  }
+})
